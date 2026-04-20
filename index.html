@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🍣 Sushi Battle Royale</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <!-- Supabase JS client (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ========== DESIGN TOKENS ========== */
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #13131a;
+      --surface2: #1a1a24;
+      --border:   #2a2a38;
+      --text:     #e8e6f0;
+      --text2:    #8a8898;
+      --accent:   #ff6b35;
+      --accent2:  #ff3d5a;
+      --gold:     #ffc53d;
+      --success:  #34d399;
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-body:    'DM Sans', sans-serif;
+      --safe-top:    env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* ========== RESET ========== */
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      padding: var(--safe-top) 0 var(--safe-bottom);
+      overflow-x: hidden;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px 16px calc(24px + var(--safe-bottom));
+    }
+
+    /* ========== ANIMATIONS ========== */
+    @keyframes fadeIn   { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideDown{ from { opacity:0; transform:translate(-50%,-30px); } to { opacity:1; transform:translate(-50%,0); } }
+    @keyframes pop      { 0%,100%{ transform:scale(1); } 40%{ transform:scale(1.4); } }
+    @keyframes spin     { to { transform: rotate(360deg); } }
+
+    .fade-in { animation: fadeIn .35s ease both; }
+
+    /* ========== LOADING ========== */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 0;
+      gap: 16px;
+    }
+    .loading-spinner { font-size: 36px; animation: spin 1s linear infinite; }
+    .loading-text    { color: var(--text2); font-size: 14px; }
+
+    /* ========== BUTTONS ========== */
+    .btn {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all .15s;
+      letter-spacing: .3px;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #ff7d4d; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); }
+    .btn-ghost     { background: transparent; color: var(--text2); width: auto; padding: 8px 4px; font-size: 14px; }
+    .btn-ghost:hover { color: var(--text); }
+    .btn-danger    { background: rgba(255,61,90,.15); color: var(--accent2); border: 1px solid rgba(255,61,90,.3); }
+    .btn-danger:hover { background: rgba(255,61,90,.25); }
+    .btn-undo      { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); font-size: 14px; padding: 10px; }
+    .btn:disabled  { opacity: .4; cursor: not-allowed; transform: none; }
+    .btn-group     { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+
+    /* ========== CARD ========== */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .card-highlight {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(255,107,53,.08), transparent);
+    }
+
+    /* ========== INPUTS ========== */
+    .input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 16px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .input:focus { border-color: var(--accent); }
+    .input::placeholder { color: var(--text2); }
+
+    /* ========== HOME ========== */
+    .hero-emoji  { font-size: 52px; text-align: center; margin-bottom: 8px; }
+    .hero-title  { font-family: var(--font-display); font-size: 56px; text-align: center; color: var(--text); letter-spacing: 3px; line-height: 1; }
+    .hero-sub    { font-family: var(--font-display); font-size: 32px; text-align: center; color: var(--accent); letter-spacing: 4px; }
+    .hero-tagline{ text-align: center; color: var(--text2); margin: 12px 0 0; font-size: 14px; }
+
+    /* ========== POINTS GRID ========== */
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      letter-spacing: 2px;
+      color: var(--text2);
+      margin-bottom: 12px;
+    }
+    .pts-grid    { display: flex; flex-direction: column; gap: 6px; }
+    .pts-row     { display: flex; align-items: center; gap: 10px; }
+    .pts-emoji   { font-size: 18px; width: 28px; text-align: center; }
+    .pts-name    { flex: 1; font-size: 14px; color: var(--text2); }
+    .pts-badge   { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 20px; color: #fff; }
+
+    /* ========== JOIN VIEW ========== */
+    .page-title    { font-family: var(--font-display); font-size: 32px; letter-spacing: 2px; margin: 16px 0 20px; }
+    .player-chip   { display: flex; align-items: center; justify-content: space-between; width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; cursor: pointer; font-family: var(--font-body); font-size: 14px; color: var(--text); transition: border-color .15s; margin-bottom: 8px; }
+    .player-chip:hover { border-color: var(--accent); }
+    .player-chip-pts { color: var(--gold); font-weight: 700; }
+
+    /* ========== SESSION VIEW ========== */
+    .session-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .timer { font-family: var(--font-display); font-size: 22px; letter-spacing: 2px; color: var(--success); }
+    .timer.ended { color: var(--text2); }
+
+    .stats-bar { display: flex; justify-content: space-around; margin-top: 12px; }
+    .stat-item  { text-align: center; }
+    .stat-value { font-family: var(--font-display); font-size: 28px; letter-spacing: 1px; }
+    .stat-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* ========== SUSHI GRID ========== */
+    .sushi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 16px 0;
+    }
+    .sushi-btn {
+      position: relative;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: all .15s;
+      font-family: var(--font-body);
+    }
+    .sushi-btn:active { transform: scale(.94); }
+    .sushi-btn-emoji { font-size: 26px; }
+    .sushi-btn-name  { font-size: 11px; font-weight: 600; color: var(--text2); text-align: center; line-height: 1.2; }
+    .sushi-btn-pts   { font-size: 11px; font-weight: 700; }
+    .sushi-btn-count {
+      position: absolute;
+      top: -6px; right: -6px;
+      min-width: 20px; height: 20px;
+      border-radius: 10px;
+      font-size: 11px; font-weight: 800;
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 5px;
+    }
+    .count-pop { animation: pop .25s ease; }
+
+    .refresh-hint { font-size: 11px; color: var(--border); text-align: center; margin: 4px 0 12px; }
+
+    /* ========== LEADERBOARD (mini) ========== */
+    .section { margin-top: 20px; }
+    .mini-lead {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 12px; margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .mini-lead-me { border-color: var(--accent); background: rgba(255,107,53,.06); }
+    .mini-rank  { font-family: var(--font-display); font-size: 16px; width: 28px; }
+    .mini-name  { flex: 1; font-weight: 600; }
+    .mini-pieces{ color: var(--text2); font-size: 12px; }
+    .mini-pts   { font-family: var(--font-display); font-size: 20px; color: var(--gold); }
+
+    /* ========== TICKER ========== */
+    .ticker-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .ticker-box::-webkit-scrollbar { width: 4px; }
+    .ticker-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .ticker-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 6px; border-radius: 6px;
+      font-size: 13px;
+      transition: background .15s;
+    }
+    .ticker-item:hover { background: var(--surface2); }
+    .ticker-emoji { font-size: 16px; }
+    .ticker-text  { flex: 1; color: var(--text2); }
+    .ticker-text strong { color: var(--text); }
+    .ticker-pts   { font-weight: 700; color: var(--success); font-size: 12px; }
+    .ticker-empty { color: var(--text2); font-size: 13px; padding: 12px; text-align: center; }
+
+    /* ========== ACHIEVEMENTS ========== */
+    .achievement-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .achievement-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 12px; font-size: 13px;
+    }
+    .achievement-chip-icon { font-size: 16px; }
+    .achievement-popup {
+      position: fixed;
+      top: 24px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #1a1a24, #13131a);
+      border: 1px solid var(--gold);
+      border-radius: 16px; padding: 16px 24px;
+      text-align: center; z-index: 1000;
+      animation: slideDown .4s ease both;
+      box-shadow: 0 8px 40px rgba(255,197,61,.2);
+      min-width: 200px;
+    }
+    .achievement-popup-icon  { font-size: 36px; margin-bottom: 4px; }
+    .achievement-popup-title { font-family: var(--font-display); font-size: 22px; letter-spacing: 2px; color: var(--gold); }
+    .achievement-popup-desc  { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+    /* ========== ALL-TIME LEADERBOARD ========== */
+    .lb-item {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 8px;
+    }
+    .lb-first { border-color: var(--gold); background: rgba(255,197,61,.06); }
+    .lb-rank  { font-size: 22px; width: 32px; text-align: center; }
+    .lb-info  { flex: 1; }
+    .lb-name  { font-weight: 700; font-size: 16px; }
+    .lb-stats { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .lb-points{ font-family: var(--font-display); font-size: 28px; color: var(--gold); }
+
+    /* ========== MISC ========== */
+    .empty-text { color: var(--text2); text-align: center; font-size: 14px; padding: 24px; }
+    .status-msg { font-size: 13px; text-align: center; margin-bottom: 16px; }
+    .status-ok  { color: var(--success); }
+    .status-err { color: var(--accent2); }
+
+    /* ========== CONFIG BANNER ========== */
+    .config-banner {
+      background: rgba(255,61,90,.12);
+      border: 1px solid rgba(255,61,90,.4);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--accent2);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .config-banner code {
+      background: rgba(255,255,255,.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app" id="app">
+    <div class="loading">
+      <div class="loading-spinner">🍣</div>
+      <div class="loading-text">Laden...</div>
+    </div>
+  </div>
+
+  <script>
+  // ============================================================
+  // 🍣 SUSHI BATTLE ROYALE — v2 (Supabase Edition)
+  // ============================================================
+  // HOW TO SET UP:
+  //  1. Create a free project at https://supabase.com
+  //  2. Run schema.sql in your Supabase SQL Editor
+  //  3. Go to Project Settings → API and copy your URL + anon key
+  //  4. Paste them below
+  // ============================================================
+
+  const SUPABASE_URL      = "https://gxnvxvyoikwkutvstrbo.supabase.co";       // e.g. "https://xxxx.supabase.co"
+  const SUPABASE_API_KEY  = "sb_publishable_4NPyS1OLtkd9NGXkeknESw_0UAy2IbB";   // your public API key (starts with "eyJ...")
+
+  // ===== Categories =====
+  const CATEGORIES = [
+    { id: "hosomaki",   name: "Hosomaki",   emoji: "🟢", points: 0.5,  color: "#4ade80" },
+    { id: "california", name: "Califórnia", emoji: "🔴", points: 1.0,  color: "#f87171" },
+    { id: "uramaki",    name: "Uramaki",    emoji: "🟠", points: 1.0,  color: "#fb923c" },
+    { id: "nigiri",     name: "Nigiri",     emoji: "🐟", points: 1.25, color: "#f472b6" },
+    { id: "gunkan",     name: "Gunkan",     emoji: "🛥️", points: 1.25, color: "#a78bfa" },
+    { id: "braseado",   name: "Braseado",   emoji: "🔥", points: 1.25, color: "#fbbf24" },
+    { id: "hotsushi",   name: "Hot Sushi",  emoji: "🌶️", points: 1.25, color: "#ef4444" },
+    { id: "temaki",     name: "Temaki",     emoji: "🌮", points: 1.5,  color: "#2dd4bf" },
+    { id: "sashimi",    name: "Sashimi",    emoji: "🍣", points: 1.5,  color: "#e879f9" },
+    { id: "couvert",    name: "Couvert",    emoji: "🍜", points: 0.5,  color: "#94a3b8" },
+    { id: "teppanyaki", name: "Teppanyaki", emoji: "🥩", points: 0.5,  color: "#78716c" },
+  ];
+
+  const ACHIEVEMENTS = [
+    { id: "first_blood",     name: "First Blood",     desc: "Erstes Sushi der Session",     icon: "⚔️",  check: p => p.totalPieces >= 1 },
+    { id: "maki_monster",    name: "Maki Monster",    desc: "10 Hosomaki gegessen",         icon: "👹",  check: p => (p.counts.hosomaki  || 0) >= 10 },
+    { id: "nigiri_ninja",    name: "Nigiri Ninja",    desc: "10 Nigiri gegessen",           icon: "🥷",  check: p => (p.counts.nigiri    || 0) >= 10 },
+    { id: "sashimi_samurai", name: "Sashimi Samurai", desc: "5× Sashimi bestellt",         icon: "⚔️",  check: p => (p.counts.sashimi   || 0) >= 5  },
+    { id: "temaki_titan",    name: "Temaki Titan",    desc: "5 Temaki gegessen",            icon: "🗼",  check: p => (p.counts.temaki    || 0) >= 5  },
+    { id: "centurion",       name: "Centurion",       desc: "100 Punkte in einer Session",  icon: "💯",  check: p => p.totalPoints >= 100 },
+    { id: "variety_king",    name: "Variety King",    desc: "Alle 11 Kategorien probiert",  icon: "👑",  check: p => Object.keys(p.counts).length >= CATEGORIES.length },
+    { id: "fifty_pieces",    name: "Half Century",    desc: "50 Stück gegessen",            icon: "🏅",  check: p => p.totalPieces >= 50  },
+    { id: "speed_demon",     name: "Speed Demon",     desc: "Pace über 3/min",              icon: "⚡",  check: p => p.pace > 3 },
+  ];
+
+  // ===== State =====
+  let state = {
+    view: "home",
+    sessionId: null,
+    sessionActive: false,
+    sessionStart: null,
+    currentPlayer: null,
+    playerName: "",
+    sessionPlayers: {},        // { playerName: { counts, totalPoints, totalPieces } }
+    ticker: [],                // last N entries for display
+    elapsed: 0,
+    achievements: [],
+    newAchievement: null,
+    loading: false,
+    alltimePlayers: {},
+  };
+
+  // ===== Supabase init =====
+  let db = null;
+  let realtimeChannel = null;
+
+  function initSupabase() {
+    if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_API_KEY === "YOUR_SUPABASE_API_KEY") return false;
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_API_KEY);
+    return true;
+  }
+
+  // ===== Database helpers =====
+  async function dbStartSession() {
+    const { data, error } = await db
+      .from("sessions")
+      .insert({ active: true })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function dbGetActiveSession() {
+    const { data, error } = await db
+      .from("sessions")
+      .select("*")
+      .eq("active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data; // null if no active session
+  }
+
+  async function dbLogEntry(sessionId, playerName, categoryId, points) {
+    const { data, error } = await db
+      .from("entries")
+      .insert({ session_id: sessionId, player_name: playerName, category_id: categoryId, points })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function dbGetSessionEntries(sessionId) {
+    const { data, error } = await db
+      .from("entries")
+      .select("*")
+      .eq("session_id", sessionId)
+      .eq("undone", false)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function dbUndoLast(sessionId, playerName) {
+    // Find the last non-undone entry for this player
+    const { data } = await db
+      .from("entries")
+      .select("id")
+      .eq("session_id", sessionId)
+      .eq("player_name", playerName)
+      .eq("undone", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return false;
+    await db.from("entries").update({ undone: true }).eq("id", data.id);
+    return true;
+  }
+
+  async function dbEndSession(sessionId) {
+    await db
+      .from("sessions")
+      .update({ active: false, ended_at: new Date().toISOString() })
+      .eq("id", sessionId);
+  }
+
+  async function dbGetAlltimeStats() {
+    const { data, error } = await db
+      .from("entries")
+      .select("player_name, points, session_id")
+      .eq("undone", false);
+    if (error || !data) return {};
+
+    const stats = {};
+    data.forEach(e => {
+      if (!stats[e.player_name]) stats[e.player_name] = { totalPoints: 0, totalPieces: 0, sessions: new Set() };
+      stats[e.player_name].totalPoints += e.points;
+      stats[e.player_name].totalPieces += 1;
+      stats[e.player_name].sessions.add(e.session_id);
+    });
+    Object.keys(stats).forEach(n => { stats[n].sessions = stats[n].sessions.size; });
+    return stats;
+  }
+
+  // ===== Compute player stats from flat entry list =====
+  function computePlayerStats(entries) {
+    const players = {};
+    entries.forEach(e => {
+      if (!players[e.player_name]) {
+        players[e.player_name] = { counts: {}, totalPoints: 0, totalPieces: 0 };
+      }
+      const p = players[e.player_name];
+      p.counts[e.category_id] = (p.counts[e.category_id] || 0) + 1;
+      p.totalPoints += e.points;
+      p.totalPieces += 1;
+    });
+    return players;
+  }
+
+  // ===== Real-time subscription =====
+  function subscribeToSession(sessionId) {
+    unsubscribeFromSession();
+    realtimeChannel = db
+      .channel(`session-${sessionId}`)
+      // Live entries (new pieces logged or undone)
+      .on("postgres_changes", { event: "*", schema: "public", table: "entries", filter: `session_id=eq.${sessionId}` },
+        () => refreshSession())
+      // Session ended by someone else
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${sessionId}` },
+        payload => {
+          if (payload.new && !payload.new.active) {
+            state.sessionActive = false;
+            stopTimer();
+            renderSession();
+          }
+        })
+      .subscribe();
+  }
+
+  function unsubscribeFromSession() {
+    if (realtimeChannel && db) {
+      db.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+  }
+
+  // ===== Timer =====
+  let timerInterval = null;
+
+  function startTimer() {
+    stopTimer();
+    timerInterval = setInterval(() => {
+      if (state.sessionStart) {
+        state.elapsed = Math.floor((Date.now() - new Date(state.sessionStart).getTime()) / 1000);
+        updateTimerDisplay();
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function updateTimerDisplay() {
+    const el = document.getElementById("timer");
+    if (el) {
+      const m = Math.floor(state.elapsed / 60);
+      const s = state.elapsed % 60;
+      el.textContent = `⏱ ${m}:${s.toString().padStart(2, "0")}`;
+    }
+  }
+
+  // ===== Actions =====
+  async function startSession() {
+    state.loading = true;
+    render();
+    try {
+      const session = await dbStartSession();
+      state.sessionId    = session.id;
+      state.sessionActive = true;
+      state.sessionStart  = session.created_at;
+      state.sessionPlayers = {};
+      state.ticker = [];
+      state.view = "join";
+    } catch (e) {
+      console.error(e);
+      alert("Fehler beim Starten der Session: " + e.message);
+    }
+    state.loading = false;
+    render();
+  }
+
+  async function joinExisting() {
+    state.loading = true;
+    state.view = "join";
+    render();
+    try {
+      const session = await dbGetActiveSession();
+      if (session) {
+        state.sessionId     = session.id;
+        state.sessionActive = session.active;
+        state.sessionStart  = session.created_at;
+        const entries = await dbGetSessionEntries(session.id);
+        state.sessionPlayers = computePlayerStats(entries);
+        state.ticker = entries.slice(-25);
+      } else {
+        state.sessionId = null;
+        state.sessionPlayers = {};
+      }
+    } catch (e) { console.error(e); }
+    state.loading = false;
+    render();
+  }
+
+  async function joinSession() {
+    const name = state.playerName.trim();
+    if (!name) return;
+    if (!state.sessionId) { alert("Keine aktive Session gefunden!"); return; }
+    state.currentPlayer = name;
+    state.view = "session";
+    state.elapsed = state.sessionStart
+      ? Math.floor((Date.now() - new Date(state.sessionStart).getTime()) / 1000)
+      : 0;
+    await refreshSession();
+    startTimer();
+    subscribeToSession(state.sessionId);
+    render();
+  }
+
+  function rejoinAs(name) {
+    state.currentPlayer = name;
+    state.playerName = name;
+    state.view = "session";
+    state.elapsed = state.sessionStart
+      ? Math.floor((Date.now() - new Date(state.sessionStart).getTime()) / 1000)
+      : 0;
+    startTimer();
+    subscribeToSession(state.sessionId);
+    render();
+  }
+
+  async function refreshSession() {
+    if (!state.sessionId) return;
+    try {
+      const entries = await dbGetSessionEntries(state.sessionId);
+      state.sessionPlayers = computePlayerStats(entries);
+      state.ticker = entries.slice(-25);
+      if (state.view === "session") renderSession();
+    } catch (e) { console.error("Refresh error:", e); }
+  }
+
+  async function logPiece(catId) {
+    if (!state.sessionActive || !state.currentPlayer) return;
+    const cat = CATEGORIES.find(c => c.id === catId);
+    if (!cat) return;
+
+    // Optimistic UI update
+    if (!state.sessionPlayers[state.currentPlayer]) {
+      state.sessionPlayers[state.currentPlayer] = { counts: {}, totalPoints: 0, totalPieces: 0 };
+    }
+    const me = state.sessionPlayers[state.currentPlayer];
+    me.counts[catId] = (me.counts[catId] || 0) + 1;
+    me.totalPieces += 1;
+    me.totalPoints += cat.points;
+
+    // Pace for achievements
+    const elapsedMin = state.elapsed / 60;
+    me.pace = elapsedMin > 0 ? me.totalPieces / elapsedMin : 0;
+    checkAchievements(me);
+
+    // Optimistic ticker
+    state.ticker.push({ created_at: new Date().toISOString(), player_name: state.currentPlayer, category_id: catId, points: cat.points });
+
+    renderSession();
+
+    // Animate badge
+    const badge = document.getElementById(`count-${catId}`);
+    if (badge) { badge.classList.remove("count-pop"); void badge.offsetWidth; badge.classList.add("count-pop"); }
+
+    // Persist to DB (real-time will then update other players)
+    try {
+      await dbLogEntry(state.sessionId, state.currentPlayer, catId, cat.points);
+    } catch (e) {
+      console.error("Log error:", e);
+      // Roll back optimistic update on failure
+      await refreshSession();
+    }
+  }
+
+  async function undoLast() {
+    if (!state.currentPlayer || !state.sessionId) return;
+    try {
+      const ok = await dbUndoLast(state.sessionId, state.currentPlayer);
+      if (ok) await refreshSession();
+    } catch (e) { console.error(e); }
+  }
+
+  async function endSession() {
+    if (!state.sessionId) return;
+    try {
+      await dbEndSession(state.sessionId);
+      state.sessionActive = false;
+      stopTimer();
+      unsubscribeFromSession();
+      renderSession();
+    } catch (e) { console.error(e); }
+  }
+
+  async function showLeaderboard() {
+    state.loading = true;
+    state.view = "leaderboard";
+    render();
+    try {
+      state.alltimePlayers = await dbGetAlltimeStats();
+    } catch (e) { state.alltimePlayers = {}; }
+    state.loading = false;
+    render();
+  }
+
+  function goHome() {
+    stopTimer();
+    unsubscribeFromSession();
+    state.view = "home";
+    state.achievements = [];
+    render();
+  }
+
+  function goJoin() {
+    stopTimer();
+    unsubscribeFromSession();
+    state.view = "join";
+    render();
+  }
+
+  // ===== Achievements =====
+  function checkAchievements(playerData) {
+    ACHIEVEMENTS.forEach(a => {
+      if (!state.achievements.includes(a.id) && a.check(playerData)) {
+        state.achievements.push(a.id);
+        showAchievementPopup(a);
+      }
+    });
+  }
+
+  function showAchievementPopup(achievement) {
+    state.newAchievement = achievement;
+    // Inject popup directly (don't re-render full session)
+    const existing = document.getElementById("achievement-popup");
+    if (existing) existing.remove();
+    const popup = document.createElement("div");
+    popup.id = "achievement-popup";
+    popup.className = "achievement-popup";
+    popup.innerHTML = `
+      <div class="achievement-popup-icon">${achievement.icon}</div>
+      <div class="achievement-popup-title">${achievement.name}</div>
+      <div class="achievement-popup-desc">${achievement.desc}</div>
+    `;
+    document.body.appendChild(popup);
+    setTimeout(() => { popup.remove(); state.newAchievement = null; }, 3500);
+  }
+
+  // ===== Render =====
+  function render() {
+    const app = document.getElementById("app");
+    const configured = SUPABASE_URL !== "YOUR_SUPABASE_URL";
+
+    if (!configured) {
+      app.innerHTML = renderSetupBanner();
+      return;
+    }
+    switch (state.view) {
+      case "home":        app.innerHTML = renderHome(); break;
+      case "join":        app.innerHTML = renderJoin(); break;
+      case "session":     renderSession(); break;
+      case "leaderboard": app.innerHTML = renderLeaderboard(); break;
+    }
+  }
+
+  function renderSetupBanner() {
+    return `
+      <div class="fade-in" style="padding-top:40px">
+        <div class="hero-emoji">🍣⚔️🍣</div>
+        <h1 class="hero-title">SUSHI BATTLE</h1>
+        <p class="hero-sub">ROYALE</p>
+        <div class="config-banner" style="margin-top:32px">
+          <strong>⚙️ Setup erforderlich</strong><br><br>
+          Öffne <code>index.html</code> und trage deine Supabase-Daten ein:<br><br>
+          <code>SUPABASE_URL</code> → deine Projekt-URL<br>
+          <code>SUPABASE_API_KEY</code> → dein öffentlicher API-Schlüssel<br><br>
+          Beide findest du unter <strong>Project Settings → API</strong> in deinem Supabase Dashboard.
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHome() {
+    const ptsRows = CATEGORIES.map(c => `
+      <div class="pts-row">
+        <span class="pts-emoji">${c.emoji}</span>
+        <span class="pts-name">${c.name}</span>
+        <span class="pts-badge" style="background:${c.color}">${c.points}×</span>
+      </div>
+    `).join("");
+
+    return `
+      <div class="fade-in" style="padding-top:40px">
+        <div class="hero-emoji">🍣⚔️🍣</div>
+        <h1 class="hero-title">SUSHI BATTLE</h1>
+        <p class="hero-sub">ROYALE</p>
+        <p class="hero-tagline">Wer isst am meisten? Wer holt die Krone?</p>
+        <div class="btn-group">
+          <button class="btn btn-primary"   onclick="startSession()">🏁 Neue Session starten</button>
+          <button class="btn btn-secondary" onclick="joinExisting()">🔄 Laufende Session beitreten</button>
+          <button class="btn btn-secondary" onclick="showLeaderboard()">🏆 Alltime Leaderboard</button>
+        </div>
+        <div class="card" style="margin-top:24px">
+          <div class="section-title">PUNKTEVERTEILUNG</div>
+          <div class="pts-grid">${ptsRows}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderJoin() {
+    const playerNames = Object.keys(state.sessionPlayers || {});
+    const playerChips = playerNames.map(name => {
+      const p = state.sessionPlayers[name];
+      return `<button class="player-chip" onclick="rejoinAs('${name.replace(/'/g, "\\'")}')">
+        <span>${name}</span>
+        <span class="player-chip-pts">${p.totalPoints.toFixed(1)} Pts</span>
+      </button>`;
+    }).join("");
+
+    const statusMsg = state.sessionId
+      ? `<p class="status-msg status-ok">✅ Aktive Session gefunden</p>`
+      : `<p class="status-msg status-err">Keine aktive Session — starte zuerst eine neue!</p>`;
+
+    return `
+      <div class="fade-in">
+        <button class="btn btn-ghost" onclick="goHome()">← Zurück</button>
+        <h1 class="page-title">🍣 BEITRETEN</h1>
+        ${state.loading
+          ? `<div class="loading"><div class="loading-spinner">🍣</div><div class="loading-text">Session wird gesucht...</div></div>`
+          : `
+            ${statusMsg}
+            ${state.sessionId ? `
+              <input class="input" id="nameInput" placeholder="Dein Name..."
+                maxlength="20" value="${state.playerName}"
+                oninput="state.playerName=this.value"
+                onkeydown="if(event.key==='Enter')joinSession()">
+              <div style="margin-top:10px">
+                <button class="btn btn-primary" onclick="joinSession()">Beitreten →</button>
+              </div>
+              ${playerNames.length > 0 ? `
+                <div class="section">
+                  <div class="section-title">BEREITS DABEI</div>
+                  ${playerChips}
+                </div>
+              ` : ""}
+            ` : `
+              <button class="btn btn-primary" onclick="startSession()">🏁 Neue Session starten</button>
+            `}
+          `
+        }
+      </div>
+    `;
+  }
+
+  function renderSession() {
+    const app = document.getElementById("app");
+    const me = state.sessionPlayers[state.currentPlayer] || { counts: {}, totalPoints: 0, totalPieces: 0 };
+    const elapsedMin = state.elapsed / 60;
+    const pace = elapsedMin > 0 ? (me.totalPieces / elapsedMin).toFixed(1) : "0.0";
+
+    // Ranking
+    const sorted = Object.entries(state.sessionPlayers).sort((a, b) => b[1].totalPoints - a[1].totalPoints);
+    const myRank = sorted.findIndex(([n]) => n === state.currentPlayer) + 1 || "—";
+
+    // Sushi buttons
+    const sushiBtns = CATEGORIES.map(cat => {
+      const count = me.counts[cat.id] || 0;
+      return `<button class="sushi-btn" style="border-color:${cat.color};background:${cat.color}12"
+          onclick="logPiece('${cat.id}')" ${!state.sessionActive ? "disabled" : ""}>
+        <span class="sushi-btn-emoji">${cat.emoji}</span>
+        <span class="sushi-btn-name">${cat.name}</span>
+        <span class="sushi-btn-pts" style="color:${cat.color}">${cat.points}×</span>
+        ${count > 0 ? `<span class="sushi-btn-count count-pop" id="count-${cat.id}" style="background:${cat.color}">${count}</span>` : ""}
+      </button>`;
+    }).join("");
+
+    // Mini leaderboard
+    const miniLead = sorted.map(([name, data], i) => `
+      <div class="mini-lead ${name === state.currentPlayer ? "mini-lead-me" : ""}">
+        <span class="mini-rank">${i === 0 ? "👑" : "#" + (i + 1)}</span>
+        <span class="mini-name">${name}</span>
+        <span class="mini-pieces">${data.totalPieces}🍣</span>
+        <span class="mini-pts">${data.totalPoints.toFixed(1)}</span>
+      </div>
+    `).join("");
+
+    // Ticker
+    const tickerItems = state.ticker.slice(-25).map(t => {
+      const cat = CATEGORIES.find(c => c.id === t.category_id);
+      return `<div class="ticker-item">
+        <span class="ticker-emoji">${cat ? cat.emoji : "🍣"}</span>
+        <span class="ticker-text"><strong>${t.player_name}</strong> → ${cat ? cat.name : t.category_id}</span>
+        <span class="ticker-pts">+${t.points}</span>
+      </div>`;
+    }).join("");
+
+    // Achievements
+    const achHTML = state.achievements.map(aId => {
+      const a = ACHIEVEMENTS.find(x => x.id === aId);
+      return a ? `<div class="achievement-chip"><span class="achievement-chip-icon">${a.icon}</span><span class="achievement-chip-name">${a.name}</span></div>` : "";
+    }).join("");
+
+    const m = Math.floor(state.elapsed / 60);
+    const s = state.elapsed % 60;
+
+    app.innerHTML = `
+      <div class="fade-in">
+        <div class="session-header">
+          <button class="btn btn-ghost" onclick="goJoin()">← Spieler</button>
+          <div class="timer ${!state.sessionActive ? "ended" : ""}" id="timer">
+            ${state.sessionActive ? `⏱ ${m}:${s.toString().padStart(2,"0")}` : "⏹ Beendet"}
+          </div>
+        </div>
+
+        <div class="card card-highlight">
+          <div style="text-align:center;font-size:22px;font-weight:800;font-family:var(--font-display);letter-spacing:2px">${state.currentPlayer}</div>
+          <div class="stats-bar">
+            <div class="stat-item">
+              <div class="stat-value">${me.totalPoints.toFixed(1)}</div>
+              <div class="stat-label">Punkte</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">${me.totalPieces}</div>
+              <div class="stat-label">Stück</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">${pace}</div>
+              <div class="stat-label">Pro Min</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">#${myRank}</div>
+              <div class="stat-label">Rang</div>
+            </div>
+          </div>
+        </div>
+
+        ${state.sessionActive ? `<div class="sushi-grid">${sushiBtns}</div>` : ""}
+        ${state.sessionActive && me.totalPieces > 0 ? `<button class="btn btn-undo" onclick="undoLast()">↩️ Letztes rückgängig</button>` : ""}
+
+        <p class="refresh-hint">🔴 Live — aktualisiert sich sofort</p>
+
+        <div class="section">
+          <div class="section-title">📊 SESSION RANKING</div>
+          ${miniLead || '<div class="empty-text">Noch keine Spieler</div>'}
+        </div>
+
+        <div class="section">
+          <div class="section-title">📡 LIVE TICKER</div>
+          <div class="ticker-box" id="ticker-box">
+            ${tickerItems || '<div class="ticker-empty">Wartet auf das erste Stück...</div>'}
+          </div>
+        </div>
+
+        ${achHTML ? `
+          <div class="section">
+            <div class="section-title">🏆 ACHIEVEMENTS</div>
+            <div class="achievement-grid">${achHTML}</div>
+          </div>
+        ` : ""}
+
+        <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px">
+          ${state.sessionActive ? `<button class="btn btn-danger" onclick="endSession()">⏹ Session beenden</button>` : ""}
+          <button class="btn btn-secondary" onclick="showLeaderboard()">🏆 Alltime Leaderboard</button>
+        </div>
+      </div>
+    `;
+
+    // Scroll ticker to bottom
+    const tb = document.getElementById("ticker-box");
+    if (tb) tb.scrollTop = tb.scrollHeight;
+  }
+
+  function renderLeaderboard() {
+    if (state.loading) {
+      return `
+        <div class="fade-in">
+          <button class="btn btn-ghost" onclick="goHome()">← Zurück</button>
+          <h1 class="page-title">🏆 ALLTIME</h1>
+          <div class="loading"><div class="loading-spinner">🍣</div><div class="loading-text">Lade Leaderboard...</div></div>
+        </div>`;
+    }
+
+    const sorted = Object.entries(state.alltimePlayers || {}).sort((a, b) => b[1].totalPoints - a[1].totalPoints);
+    const items = sorted.map(([name, data], i) => `
+      <div class="lb-item ${i === 0 ? "lb-first" : ""}">
+        <div class="lb-rank">${i === 0 ? "👑" : i === 1 ? "🥈" : i === 2 ? "🥉" : "#" + (i + 1)}</div>
+        <div class="lb-info">
+          <div class="lb-name">${name}</div>
+          <div class="lb-stats">${data.totalPieces} Stück · ${data.sessions || 0} Sessions</div>
+        </div>
+        <div class="lb-points">${data.totalPoints.toFixed(1)}</div>
+      </div>
+    `).join("");
+
+    return `
+      <div class="fade-in">
+        <button class="btn btn-ghost" onclick="goHome()">← Zurück</button>
+        <h1 class="page-title">🏆 ALLTIME</h1>
+        ${items || '<div class="empty-text">Noch keine Daten — startet eine Session!</div>'}
+      </div>`;
+  }
+
+  // ===== Init =====
+  const ready = initSupabase();
+  render();
+  </script>
+</body>
+</html>
